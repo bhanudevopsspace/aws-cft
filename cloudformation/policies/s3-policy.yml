@@ -1,0 +1,25 @@
+SampleBucket:
+  Type: AWS::S3::Bucket
+  Properties:
+    BucketName: sample-cfn-bucket-123456
+
+S3AccessPolicy:
+  Type: AWS::IAM::Policy
+  Properties:
+    PolicyName: sample-s3-access-policy
+    Users:
+      - !Ref IamUser
+    PolicyDocument:
+      Version: "2012-10-17"
+      Statement:
+        - Effect: Allow
+          Action:
+            - s3:ListBucket
+          Resource:
+            - !Sub arn:aws:s3:::sample-cfn-bucket-123456
+        - Effect: Allow
+          Action:
+            - s3:GetObject
+            - s3:PutObject
+          Resource:
+            - !Sub arn:aws:s3:::sample-cfn-bucket-123456/*

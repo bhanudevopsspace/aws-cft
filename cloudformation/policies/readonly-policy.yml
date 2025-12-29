@@ -1,0 +1,14 @@
+ReadOnlyPolicy:
+  Type: AWS::IAM::Policy
+  Properties:
+    PolicyName: sample-readonly-policy
+    Users:
+      - !Ref IamUser
+    PolicyDocument:
+      Version: "2012-10-17"
+      Statement:
+        - Effect: Allow
+          Action:
+            - iam:Get*
+            - iam:List*
+          Resource: "*"

@@ -1,0 +1,68 @@
+plugins {
+    id 'base'
+}
+
+task buildFinalTemplate {
+    group = "cloudformation"
+    description = "Build a single CloudFormation template from local fragments"
+
+    doLast {
+        println "Building CloudFormation template..."
+        println "Project directory: ${project.projectDir}"
+
+        // Read base template
+        def baseTemplate = file("cloudformation/base.yml").text
+
+        // Collect all YAML fragments
+        def roleFiles = fileTree("cloudformation/roles").matching {
+            include "**/*.yml", "**/*.yaml"
+        }.files
+
+        def policyFiles = fileTree("cloudformation/policies").matching {
+            include "**/*.yml", "**/*.yaml"
+        }.files
+
+        if (roleFiles.isEmpty()) {
+            throw new GradleException("No role files found in cloudformation/roles")
+        }
+
+        if (policyFiles.isEmpty()) {
+            throw new GradleException("No policy files found in cloudformation/policies")
+        }
+
+        println "Role files:"
+        roleFiles.each { println " - ${it.name}" }
+
+        println "Policy files:"
+        policyFiles.each { println " - ${it.name}" }
+
+        // Merge fragments
+        def fragments = []
+        fragments += roleFiles.collect { it.text }
+        fragments += policyFiles.collect { it.text }
+
+        // Indent for YAML under Resources:
+        def resourcesBlock = fragments.join("\n\n")
+            .readLines()
+            .collect { "  " + it }
+            .join("\n")
+
+        // Replace placeholder
+        def finalTemplate = baseTemplate.replace("{{RESOURCES}}", resourcesBlock)
+
+        // Safety check
+        if (finalTemplate.contains("{{")) {
+            throw new GradleException("Unresolved placeholders detected in final template")
+        }
+
+        // Write output
+        def outDir = file("$buildDir/cloudformation")
+        outDir.mkdirs()
+
+        def outputFile = file("$outDir/final-template.yml")
+        outputFile.text = finalTemplate
+
+        println "Final CloudFormation template generated:"
+        println outputFile.absolutePath
+    }
+}

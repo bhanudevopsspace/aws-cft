@@ -1,0 +1,69 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: IAM + S3 Stack (locally compiled)
+
+Resources:
+  IamUser:
+    Type: AWS::IAM::User
+    Properties:
+      UserName: sample-readonl  
+  
+  LogsPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: sample-logs-policy
+      Users:
+        - !Ref IamUser
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action:
+              - logs:CreateLogGroup
+              - logs:CreateLogStream
+              - logs:PutLogEvents
+            Resource: "*"
+  
+  
+  ReadOnlyPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: sample-readonly-policy
+      Users:
+        - !Ref IamUser
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action:
+              - iam:Get*
+              - iam:List*
+            Resource: "*"
+  
+  
+  SampleBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: sample-cfn-bucket-123456
+  
+  S3AccessPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: sample-s3-access-policy
+      Users:
+        - !Ref IamUser
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action:
+              - s3:ListBucket
+            Resource:
+              - !Sub arn:aws:s3:::sample-cfn-bucket-123456
+          - Effect: Allow
+            Action:
+              - s3:GetObject
+              - s3:PutObject
+            Resource:
+              - !Sub arn:aws:s3:::sample-cfn-bucket-123456/*
+y-user
+
