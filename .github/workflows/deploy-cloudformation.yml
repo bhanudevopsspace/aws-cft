@@ -20,6 +20,7 @@ jobs:
   build-and-changeset:
     name: Build & Create Change Set
     runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment }}
 
     outputs:
       change_set_name: ${{ steps.changeset.outputs.change_set_name }}
