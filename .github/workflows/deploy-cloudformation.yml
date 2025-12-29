@@ -1,0 +1,109 @@
+name: Deploy CloudFormation (Change Sets + Approval)
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Deployment environment"
+        required: true
+        type: choice
+        options:
+          - dev
+          - qa
+          - prod
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  build-and-changeset:
+    name: Build & Create Change Set
+    runs-on: ubuntu-latest
+
+    outputs:
+      change_set_name: ${{ steps.changeset.outputs.change_set_name }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
+
+      - name: Build final CloudFormation template
+        run: ./gradlew buildFinalTemplate
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-west-2
+
+      - name: Create Change Set
+        id: changeset
+        run: |
+          ENV="${{ github.event.inputs.environment }}"
+          STACK_NAME="bhanu-techmologics-iam-${ENV}"
+          TEMPLATE="file://build/cloudformation/final-template.yml"
+          CHANGE_SET="cs-${ENV}-$(date +%Y%m%d%H%M%S)"
+
+          echo "change_set_name=$CHANGE_SET" >> $GITHUB_OUTPUT
+
+          if aws cloudformation describe-stacks --stack-name "$STACK_NAME" >/dev/null 2>&1; then
+            TYPE=UPDATE
+          else
+            TYPE=CREATE
+          fi
+
+          aws cloudformation create-change-set \
+            --stack-name "$STACK_NAME" \
+            --change-set-name "$CHANGE_SET" \
+            --change-set-type "$TYPE" \
+            --template-body "$TEMPLATE" \
+            --capabilities CAPABILITY_NAMED_IAM
+
+          aws cloudformation wait change-set-create-complete \
+            --stack-name "$STACK_NAME" \
+            --change-set-name "$CHANGE_SET"
+
+          aws cloudformation describe-change-set \
+            --stack-name "$STACK_NAME" \
+            --change-set-name "$CHANGE_SET"
+
+  approve-and-deploy:
+    name: Approve & Execute Change Set
+    needs: build-and-changeset
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment }}
+
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-west-2
+
+      - name: Execute Change Set
+        run: |
+          ENV="${{ github.event.inputs.environment }}"
+          STACK_NAME="bhanu-techmologics-iam-${ENV}"
+          CHANGE_SET="${{ needs.build-and-changeset.outputs.change_set_name }}"
+
+          aws cloudformation execute-change-set \
+            --stack-name "$STACK_NAME" \
+            --change-set-name "$CHANGE_SET"
+
+          aws cloudformation wait stack-create-complete \
+            --stack-name "$STACK_NAME" 2>/dev/null \
+          || aws cloudformation wait stack-update-complete \
+            --stack-name "$STACK_NAME"
