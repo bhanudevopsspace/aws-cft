@@ -1,4 +1,4 @@
-name: Deploy CloudFormation (Change Sets + Approval)
+name: Deploy CloudFormation
 
 on:
   workflow_dispatch:
