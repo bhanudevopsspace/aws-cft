@@ -63,14 +63,10 @@ jobs:
 
           echo "Using stack: $STACK_NAME"
 
-          # ---- HARD VALIDATION (prevents misleading AWS errors) ----
           if [[ ! -s "$TEMPLATE_PATH" ]]; then
-            echo "ERROR: CloudFormation template missing or empty at $TEMPLATE_PATH"
+            echo "ERROR: Template missing or empty"
             exit 1
           fi
-
-          echo "Template preview (first 20 lines):"
-          sed -n '1,20p' "$TEMPLATE_PATH"
 
           echo "change_set_name=$CHANGE_SET" >> "$GITHUB_OUTPUT"
 
@@ -85,6 +81,7 @@ jobs:
             --change-set-name "$CHANGE_SET" \
             --change-set-type "$TYPE" \
             --template-body "$TEMPLATE_URI" \
+            --parameters ParameterKey=StackName,ParameterValue="$STACK_NAME" \
             --capabilities CAPABILITY_NAMED_IAM
 
           aws cloudformation wait change-set-create-complete \
@@ -118,15 +115,10 @@ jobs:
           STACK_NAME="bhanu-techmologics-iam-${ENV}"
           CHANGE_SET="${{ needs.build-and-changeset.outputs.change_set_name }}"
 
-          echo "Executing change set $CHANGE_SET on $STACK_NAME"
-
           aws cloudformation execute-change-set \
             --stack-name "$STACK_NAME" \
             --change-set-name "$CHANGE_SET"
 
-          echo "Waiting for stack operation to complete..."
-
-          # Wait until stack exists (important for CREATE)
           until aws cloudformation describe-stacks --stack-name "$STACK_NAME" >/dev/null 2>&1; do
             sleep 5
           done
@@ -144,11 +136,11 @@ jobs:
                 sleep 10
                 ;;
               CREATE_COMPLETE|UPDATE_COMPLETE)
-                echo "Stack deployment completed successfully"
+                echo "Deployment completed successfully"
                 break
                 ;;
               ROLLBACK_COMPLETE|UPDATE_ROLLBACK_COMPLETE|CREATE_FAILED|UPDATE_FAILED)
-                echo "Stack deployment failed with status: $STATUS"
+                echo "Deployment failed with status: $STATUS"
                 exit 1
                 ;;
               *)
