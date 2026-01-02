@@ -1,0 +1,26 @@
+SecondBucket:
+  Type: AWS::S3::Bucket
+  Properties:
+    BucketName: !Sub "${StackName}-3rdbucket"
+
+S3SecondBucketAccessPolicy:
+  Type: AWS::IAM::Policy
+  Properties:
+    PolicyName: !Sub "${StackName}-s3-3rdbucket-access-policy"
+    Users:
+      - !Ref IamUser
+    PolicyDocument:
+      Version: "2012-10-17"
+      Statement:
+        - Effect: Allow
+          Action:
+            - s3:ListBucket
+          Resource:
+            - !Sub "arn:aws:s3:::${StackName}-3rdbucket"
+        - Effect: Allow
+          Action:
+            - s3:GetObject
+            - s3:PutObject
+          Resource:
+            - !Sub "arn:aws:s3:::${StackName}-3rdbucket/*"
+
