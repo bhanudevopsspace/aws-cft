@@ -1,9 +1,9 @@
-SecondBucket:
+ThirdBucket:
   Type: AWS::S3::Bucket
   Properties:
     BucketName: !Sub "${StackName}-3rdbucket"
 
-S3SecondBucketAccessPolicy:
+S3ThirdBucketAccessPolicy:
   Type: AWS::IAM::Policy
   Properties:
     PolicyName: !Sub "${StackName}-s3-3rdbucket-access-policy"
@@ -23,4 +23,3 @@ S3SecondBucketAccessPolicy:
             - s3:PutObject
           Resource:
             - !Sub "arn:aws:s3:::${StackName}-3rdbucket/*"
-
