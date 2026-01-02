@@ -1,7 +1,7 @@
 LogsPolicy:
   Type: AWS::IAM::Policy
   Properties:
-    PolicyName: sample-logs-policy
+    PolicyName: !Sub "${StackName}-logs-policy"
     Users:
       - !Ref IamUser
     PolicyDocument:

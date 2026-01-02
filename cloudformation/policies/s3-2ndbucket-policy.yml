@@ -1,12 +1,12 @@
-SampleBucket:
+SecondBucket:
   Type: AWS::S3::Bucket
   Properties:
-    BucketName: !Sub "${StackName}-bucket"
+    BucketName: !Sub "${StackName}-2ndbucket"
 
-S3AccessPolicy:
+S3SecondBucketAccessPolicy:
   Type: AWS::IAM::Policy
   Properties:
-    PolicyName: !Sub "${StackName}-s3-access-policy"
+    PolicyName: !Sub "${StackName}-s3-2ndbucket-access-policy"
     Users:
       - !Ref IamUser
     PolicyDocument:
@@ -16,10 +16,11 @@ S3AccessPolicy:
           Action:
             - s3:ListBucket
           Resource:
-            - !Sub "arn:aws:s3:::${StackName}-bucket"
+            - !Sub "arn:aws:s3:::${StackName}-2ndbucket"
         - Effect: Allow
           Action:
             - s3:GetObject
             - s3:PutObject
           Resource:
-            - !Sub "arn:aws:s3:::${StackName}-bucket/*"
+            - !Sub "arn:aws:s3:::${StackName}-2ndbucket/*"
+

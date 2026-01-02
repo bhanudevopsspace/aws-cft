@@ -1,16 +1,26 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Description: IAM + S3 Stack (locally compiled)
 
+Parameters:
+  StackName:
+    Type: String
+    Description: "Name of the stack used to prefix all resource names. IMPORTANT: Use lowercase alphanumeric characters and hyphens only (e.g., 'myapp-dev'). The S3 bucket name will be '{StackName}-bucket' and must be globally unique and lowercase."
+    MinLength: 1
+    MaxLength: 50
+    AllowedPattern: ^[a-z0-9-]+$
+    ConstraintDescription: Stack name must contain only lowercase alphanumeric characters and hyphens (required for S3 bucket naming)
+
 Resources:
   IamUser:
     Type: AWS::IAM::User
     Properties:
-      UserName: sample-readonl  
+      UserName: !Sub "${StackName}-readonly-user"
+  
   
   LogsPolicy:
     Type: AWS::IAM::Policy
     Properties:
-      PolicyName: sample-logs-policy
+      PolicyName: !Sub "${StackName}-logs-policy"
       Users:
         - !Ref IamUser
       PolicyDocument:
@@ -27,7 +37,7 @@ Resources:
   ReadOnlyPolicy:
     Type: AWS::IAM::Policy
     Properties:
-      PolicyName: sample-readonly-policy
+      PolicyName: !Sub "${StackName}-readonly-policy"
       Users:
         - !Ref IamUser
       PolicyDocument:
@@ -40,15 +50,15 @@ Resources:
             Resource: "*"
   
   
-  SampleBucket:
+  SecondBucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: sample-cfn-bucket-123456
+      BucketName: !Sub "${StackName}-2ndbucket"
   
-  S3AccessPolicy:
+  S3SecondBucketAccessPolicy:
     Type: AWS::IAM::Policy
     Properties:
-      PolicyName: sample-s3-access-policy
+      PolicyName: !Sub "${StackName}-s3-2ndbucket-access-policy"
       Users:
         - !Ref IamUser
       PolicyDocument:
@@ -58,12 +68,39 @@ Resources:
             Action:
               - s3:ListBucket
             Resource:
-              - !Sub arn:aws:s3:::sample-cfn-bucket-123456
+              - !Sub "arn:aws:s3:::${StackName}-2ndbucket"
           - Effect: Allow
             Action:
               - s3:GetObject
               - s3:PutObject
             Resource:
-              - !Sub arn:aws:s3:::sample-cfn-bucket-123456/*
-y-user
+              - !Sub "arn:aws:s3:::${StackName}-2ndbucket/*"
+  
+  
+  
+  SampleBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "${StackName}-bucket"
+  
+  S3AccessPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: !Sub "${StackName}-s3-access-policy"
+      Users:
+        - !Ref IamUser
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action:
+              - s3:ListBucket
+            Resource:
+              - !Sub "arn:aws:s3:::${StackName}-bucket"
+          - Effect: Allow
+            Action:
+              - s3:GetObject
+              - s3:PutObject
+            Resource:
+              - !Sub "arn:aws:s3:::${StackName}-bucket/*"
 

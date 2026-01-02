@@ -1,7 +1,7 @@
 ReadOnlyPolicy:
   Type: AWS::IAM::Policy
   Properties:
-    PolicyName: sample-readonly-policy
+    PolicyName: !Sub "${StackName}-readonly-policy"
     Users:
       - !Ref IamUser
     PolicyDocument:

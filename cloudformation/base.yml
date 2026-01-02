@@ -1,6 +1,15 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Description: IAM + S3 Stack (locally compiled)
 
+Parameters:
+  StackName:
+    Type: String
+    Description: "Name of the stack used to prefix all resource names. IMPORTANT: Use lowercase alphanumeric characters and hyphens only (e.g., 'myapp-dev'). The S3 bucket name will be '{StackName}-bucket' and must be globally unique and lowercase."
+    MinLength: 1
+    MaxLength: 50
+    AllowedPattern: ^[a-z0-9-]+$
+    ConstraintDescription: Stack name must contain only lowercase alphanumeric characters and hyphens (required for S3 bucket naming)
+
 Resources:
 {{RESOURCES}}
 

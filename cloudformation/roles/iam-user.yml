@@ -1,4 +1,4 @@
 IamUser:
   Type: AWS::IAM::User
   Properties:
-    UserName: sample-readonly-user
+    UserName: !Sub "${StackName}-readonly-user"
