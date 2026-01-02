@@ -69,20 +69,11 @@ jobs:
             TYPE=CREATE
           fi
 
-          aws cloudformation create-change-set \
-            --stack-name "$STACK_NAME" \
-            --change-set-name "$CHANGE_SET" \
-            --change-set-type "$TYPE" \
-            --template-body "$TEMPLATE" \
-            --capabilities CAPABILITY_NAMED_IAM
+          aws cloudformation create-change-set --stack-name "$STACK_NAME" --change-set-name "$CHANGE_SET" --change-set-type "$TYPE" --template-body "$TEMPLATE" --capabilities CAPABILITY_NAMED_IAM
 
-          aws cloudformation wait change-set-create-complete \
-            --stack-name "$STACK_NAME" \
-            --change-set-name "$CHANGE_SET"
+          aws cloudformation wait change-set-create-complete --stack-name "$STACK_NAME" --change-set-name "$CHANGE_SET"
 
-          aws cloudformation describe-change-set \
-            --stack-name "$STACK_NAME" \
-            --change-set-name "$CHANGE_SET"
+          aws cloudformation describe-change-set --stack-name "$STACK_NAME" --change-set-name "$CHANGE_SET"
 
   approve-and-deploy:
     name: Approve & Execute Change Set
@@ -98,7 +89,7 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-west-2
 
-      - name: Execute Change Set & Wait for Completion
+      - name: Execute Change Set & Wait
         env:
           ENV: ${{ inputs.environment }}
         run: |
@@ -107,41 +98,27 @@ jobs:
           STACK_NAME="bhanu-techmologics-iam-${ENV}"
           CHANGE_SET="${{ needs.build-and-changeset.outputs.change_set_name }}"
 
-          echo "Executing change set $CHANGE_SET on $STACK_NAME"
+          aws cloudformation execute-change-set --stack-name "$STACK_NAME" --change-set-name "$CHANGE_SET"
 
-          aws cloudformation execute-change-set \
-            --stack-name "$STACK_NAME" \
-            --change-set-name "$CHANGE_SET"
-
-          echo "Waiting for stack to be created or updated..."
-
-          # Ensure stack exists (important for CREATE)
           until aws cloudformation describe-stacks --stack-name "$STACK_NAME" >/dev/null 2>&1; do
             sleep 5
           done
 
           while true; do
-            STATUS=$(aws cloudformation describe-stacks \
-              --stack-name "$STACK_NAME" \
-              --query 'Stacks[0].StackStatus' \
-              --output text)
-
-            echo "Current stack status: $STATUS"
+            STATUS=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" --query 'Stacks[0].StackStatus' --output text)
+            echo "Status: $STATUS"
 
             case "$STATUS" in
-              CREATE_IN_PROGRESS|UPDATE_IN_PROGRESS|UPDATE_COMPLETE_CLEANUP_IN_PROGRESS)
-                sleep 10
-                ;;
               CREATE_COMPLETE|UPDATE_COMPLETE)
-                echo "Stack deployment completed successfully"
+                echo "Deployment successful"
                 break
                 ;;
-              ROLLBACK_COMPLETE|UPDATE_ROLLBACK_COMPLETE|CREATE_FAILED|UPDATE_FAILED)
-                echo "Stack deployment failed with status: $STATUS"
-                exit 1
+              *_IN_PROGRESS)
+                sleep 10
                 ;;
               *)
-                sleep 10
+                echo "Deployment failed: $STATUS"
+                exit 1
                 ;;
             esac
           done
