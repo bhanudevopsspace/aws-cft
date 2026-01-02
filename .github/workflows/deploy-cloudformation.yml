@@ -58,15 +58,19 @@ jobs:
 
           STACK_NAME="bhanu-techmologics-iam-${ENV}"
           TEMPLATE_PATH="build/cloudformation/final-template.yml"
+          TEMPLATE_URI="file://${TEMPLATE_PATH}"
           CHANGE_SET="cs-${ENV}-$(date +%Y%m%d%H%M%S)"
 
           echo "Using stack: $STACK_NAME"
 
-          # 🔒 Hard validation (THIS is the real fix)
-          if [[ ! -f "$TEMPLATE_PATH" ]]; then
-            echo "ERROR: CloudFormation template not found at $TEMPLATE_PATH"
+          # ---- HARD VALIDATION (prevents misleading AWS errors) ----
+          if [[ ! -s "$TEMPLATE_PATH" ]]; then
+            echo "ERROR: CloudFormation template missing or empty at $TEMPLATE_PATH"
             exit 1
           fi
+
+          echo "Template preview (first 20 lines):"
+          sed -n '1,20p' "$TEMPLATE_PATH"
 
           echo "change_set_name=$CHANGE_SET" >> "$GITHUB_OUTPUT"
 
@@ -76,17 +80,12 @@ jobs:
             TYPE=CREATE
           fi
 
-          cat > changeset.json <<EOF
-          {
-            "StackName": "$STACK_NAME",
-            "ChangeSetName": "$CHANGE_SET",
-            "ChangeSetType": "$TYPE",
-            "TemplateBody": "$(sed 's/"/\\"/g' "$TEMPLATE_PATH")",
-            "Capabilities": ["CAPABILITY_NAMED_IAM"]
-          }
-          EOF
-
-          aws cloudformation create-change-set --cli-input-json file://changeset.json
+          aws cloudformation create-change-set \
+            --stack-name "$STACK_NAME" \
+            --change-set-name "$CHANGE_SET" \
+            --change-set-type "$TYPE" \
+            --template-body "$TEMPLATE_URI" \
+            --capabilities CAPABILITY_NAMED_IAM
 
           aws cloudformation wait change-set-create-complete \
             --stack-name "$STACK_NAME" \
@@ -110,7 +109,7 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-west-2
 
-      - name: Execute Change Set & Wait
+      - name: Execute Change Set & Wait for Completion
         env:
           ENV: ${{ inputs.environment }}
         run: |
@@ -119,10 +118,15 @@ jobs:
           STACK_NAME="bhanu-techmologics-iam-${ENV}"
           CHANGE_SET="${{ needs.build-and-changeset.outputs.change_set_name }}"
 
+          echo "Executing change set $CHANGE_SET on $STACK_NAME"
+
           aws cloudformation execute-change-set \
             --stack-name "$STACK_NAME" \
             --change-set-name "$CHANGE_SET"
 
+          echo "Waiting for stack operation to complete..."
+
+          # Wait until stack exists (important for CREATE)
           until aws cloudformation describe-stacks --stack-name "$STACK_NAME" >/dev/null 2>&1; do
             sleep 5
           done
@@ -133,19 +137,22 @@ jobs:
               --query 'Stacks[0].StackStatus' \
               --output text)
 
-            echo "Status: $STATUS"
+            echo "Current stack status: $STATUS"
 
             case "$STATUS" in
-              CREATE_COMPLETE|UPDATE_COMPLETE)
-                echo "Deployment successful"
-                break
-                ;;
-              *_IN_PROGRESS)
+              CREATE_IN_PROGRESS|UPDATE_IN_PROGRESS|UPDATE_COMPLETE_CLEANUP_IN_PROGRESS)
                 sleep 10
                 ;;
-              *)
-                echo "Deployment failed: $STATUS"
+              CREATE_COMPLETE|UPDATE_COMPLETE)
+                echo "Stack deployment completed successfully"
+                break
+                ;;
+              ROLLBACK_COMPLETE|UPDATE_ROLLBACK_COMPLETE|CREATE_FAILED|UPDATE_FAILED)
+                echo "Stack deployment failed with status: $STATUS"
                 exit 1
+                ;;
+              *)
+                sleep 10
                 ;;
             esac
           done
