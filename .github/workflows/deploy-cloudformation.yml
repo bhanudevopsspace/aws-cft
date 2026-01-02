@@ -57,10 +57,17 @@ jobs:
           set -euo pipefail
 
           STACK_NAME="bhanu-techmologics-iam-${ENV}"
-          TEMPLATE="file://build/cloudformation/final-template.yml"
+          TEMPLATE_PATH="build/cloudformation/final-template.yml"
           CHANGE_SET="cs-${ENV}-$(date +%Y%m%d%H%M%S)"
 
           echo "Using stack: $STACK_NAME"
+
+          # 🔒 Hard validation (THIS is the real fix)
+          if [[ ! -f "$TEMPLATE_PATH" ]]; then
+            echo "ERROR: CloudFormation template not found at $TEMPLATE_PATH"
+            exit 1
+          fi
+
           echo "change_set_name=$CHANGE_SET" >> "$GITHUB_OUTPUT"
 
           if aws cloudformation describe-stacks --stack-name "$STACK_NAME" >/dev/null 2>&1; then
@@ -69,11 +76,25 @@ jobs:
             TYPE=CREATE
           fi
 
-          aws cloudformation create-change-set --stack-name "$STACK_NAME" --change-set-name "$CHANGE_SET" --change-set-type "$TYPE" --template-body "$TEMPLATE" --capabilities CAPABILITY_NAMED_IAM
+          cat > changeset.json <<EOF
+          {
+            "StackName": "$STACK_NAME",
+            "ChangeSetName": "$CHANGE_SET",
+            "ChangeSetType": "$TYPE",
+            "TemplateBody": "$(sed 's/"/\\"/g' "$TEMPLATE_PATH")",
+            "Capabilities": ["CAPABILITY_NAMED_IAM"]
+          }
+          EOF
 
-          aws cloudformation wait change-set-create-complete --stack-name "$STACK_NAME" --change-set-name "$CHANGE_SET"
+          aws cloudformation create-change-set --cli-input-json file://changeset.json
 
-          aws cloudformation describe-change-set --stack-name "$STACK_NAME" --change-set-name "$CHANGE_SET"
+          aws cloudformation wait change-set-create-complete \
+            --stack-name "$STACK_NAME" \
+            --change-set-name "$CHANGE_SET"
+
+          aws cloudformation describe-change-set \
+            --stack-name "$STACK_NAME" \
+            --change-set-name "$CHANGE_SET"
 
   approve-and-deploy:
     name: Approve & Execute Change Set
@@ -98,14 +119,20 @@ jobs:
           STACK_NAME="bhanu-techmologics-iam-${ENV}"
           CHANGE_SET="${{ needs.build-and-changeset.outputs.change_set_name }}"
 
-          aws cloudformation execute-change-set --stack-name "$STACK_NAME" --change-set-name "$CHANGE_SET"
+          aws cloudformation execute-change-set \
+            --stack-name "$STACK_NAME" \
+            --change-set-name "$CHANGE_SET"
 
           until aws cloudformation describe-stacks --stack-name "$STACK_NAME" >/dev/null 2>&1; do
             sleep 5
           done
 
           while true; do
-            STATUS=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" --query 'Stacks[0].StackStatus' --output text)
+            STATUS=$(aws cloudformation describe-stacks \
+              --stack-name "$STACK_NAME" \
+              --query 'Stacks[0].StackStatus' \
+              --output text)
+
             echo "Status: $STATUS"
 
             case "$STATUS" in
