@@ -20,7 +20,7 @@ jobs:
   build-and-changeset:
     name: Build & Create Change Set
     runs-on: ubuntu-latest
-    environment: ${{ github.event.inputs.environment }}
+    environment: ${{ inputs.environment }}
 
     outputs:
       change_set_name: ${{ steps.changeset.outputs.change_set_name }}
@@ -51,13 +51,17 @@ jobs:
 
       - name: Create Change Set
         id: changeset
+        env:
+          ENV: ${{ inputs.environment }}
         run: |
-          ENV="${{ github.event.inputs.environment }}"
+          set -euo pipefail
+
           STACK_NAME="bhanu-techmologics-iam-${ENV}"
           TEMPLATE="file://build/cloudformation/final-template.yml"
           CHANGE_SET="cs-${ENV}-$(date +%Y%m%d%H%M%S)"
 
-          echo "change_set_name=$CHANGE_SET" >> $GITHUB_OUTPUT
+          echo "Using stack: $STACK_NAME"
+          echo "change_set_name=$CHANGE_SET" >> "$GITHUB_OUTPUT"
 
           if aws cloudformation describe-stacks --stack-name "$STACK_NAME" >/dev/null 2>&1; then
             TYPE=UPDATE
@@ -84,7 +88,7 @@ jobs:
     name: Approve & Execute Change Set
     needs: build-and-changeset
     runs-on: ubuntu-latest
-    environment: ${{ github.event.inputs.environment }}
+    environment: ${{ inputs.environment }}
 
     steps:
       - name: Configure AWS credentials
@@ -95,10 +99,15 @@ jobs:
           aws-region: us-west-2
 
       - name: Execute Change Set
+        env:
+          ENV: ${{ inputs.environment }}
         run: |
-          ENV="${{ github.event.inputs.environment }}"
+          set -euo pipefail
+
           STACK_NAME="bhanu-techmologics-iam-${ENV}"
           CHANGE_SET="${{ needs.build-and-changeset.outputs.change_set_name }}"
+
+          echo "Executing change set $CHANGE_SET on $STACK_NAME"
 
           aws cloudformation execute-change-set \
             --stack-name "$STACK_NAME" \
