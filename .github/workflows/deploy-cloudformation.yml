@@ -98,7 +98,7 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-west-2
 
-      - name: Execute Change Set
+      - name: Execute Change Set & Wait for Completion
         env:
           ENV: ${{ inputs.environment }}
         run: |
@@ -113,7 +113,35 @@ jobs:
             --stack-name "$STACK_NAME" \
             --change-set-name "$CHANGE_SET"
 
-          aws cloudformation wait stack-create-complete \
-            --stack-name "$STACK_NAME" 2>/dev/null \
-          || aws cloudformation wait stack-update-complete \
-            --stack-name "$STACK_NAME"
+          echo "Waiting for stack to be created or updated..."
+
+          # Ensure stack exists (important for CREATE)
+          until aws cloudformation describe-stacks --stack-name "$STACK_NAME" >/dev/null 2>&1; do
+            sleep 5
+          done
+
+          while true; do
+            STATUS=$(aws cloudformation describe-stacks \
+              --stack-name "$STACK_NAME" \
+              --query 'Stacks[0].StackStatus' \
+              --output text)
+
+            echo "Current stack status: $STATUS"
+
+            case "$STATUS" in
+              CREATE_IN_PROGRESS|UPDATE_IN_PROGRESS|UPDATE_COMPLETE_CLEANUP_IN_PROGRESS)
+                sleep 10
+                ;;
+              CREATE_COMPLETE|UPDATE_COMPLETE)
+                echo "Stack deployment completed successfully"
+                break
+                ;;
+              ROLLBACK_COMPLETE|UPDATE_ROLLBACK_COMPLETE|CREATE_FAILED|UPDATE_FAILED)
+                echo "Stack deployment failed with status: $STATUS"
+                exit 1
+                ;;
+              *)
+                sleep 10
+                ;;
+            esac
+          done
